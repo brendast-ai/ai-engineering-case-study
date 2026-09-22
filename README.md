@@ -1,106 +1,123 @@
-# ImpactAI
+# Case de Engenharia — Agentes de IA com RAG e avaliação contínua
 
-**IA especializada para apoiar organizações do Terceiro Setor — com recuperação de conhecimento, controle de relevância e avaliação contínua de qualidade.**
+**Como uma plataforma de agentes especializados passou a tratar recuperação, relevância, diagnóstico e regressão como problemas de engenharia — e não apenas como “respostas de IA”.**
 
-> Este é um case público de produto e engenharia. O código de produção, as bases de conhecimento, dados de usuários, credenciais e detalhes sensíveis da infraestrutura permanecem privados.
-
----
-
-## Por que este projeto existe
-
-O ImpactAI nasceu para transformar conhecimento especializado em apoio prático para organizações sociais.
-
-A plataforma reúne agentes de IA voltados a diferentes temas de gestão e operação do Terceiro Setor, como planejamento, captação de recursos, projetos, prestação de contas, comunicação e voluntariado.
-
-O desafio, porém, deixou de ser simplesmente **“fazer uma IA responder perguntas”**.
-
-Em um produto real, uma resposta fluente pode estar errada, usar o documento errado, misturar conhecimentos de especialistas diferentes ou preencher lacunas com informações que parecem plausíveis.
-
-Por isso, a pergunta central do desenvolvimento passou a ser:
-
-> **Como fazer um agente responder somente com o contexto que realmente pertence ao seu domínio — e como perceber quando uma alteração aparentemente melhor piorou algo importante?**
-
-Esse problema orientou a arquitetura, os testes e o processo de evolução do ImpactAI.
+> Este é um case público de produto e engenharia. O código de produção, as bases de conhecimento, dados de usuários, credenciais, prompts internos completos e detalhes sensíveis da infraestrutura permanecem privados.
 
 ---
 
-## O que foi construído
+## O problema que mudou o projeto
+
+Uma IA pode dar uma ótima resposta com a informação errada.
+
+Esse foi um dos problemas mais importantes que encontrei construindo uma plataforma de agentes especializados para organizações do Terceiro Setor.
+
+A aplicação reunia agentes voltados a temas diferentes, como planejamento, captação de recursos, projetos, prestação de contas, comunicação e voluntariado.
+
+No começo, o desafio parecia simples:
+
+> receber uma pergunta, buscar conhecimento relacionado e gerar uma boa resposta.
+
+Mas uma resposta bem escrita não prova que o sistema funcionou.
+
+Ela pode ter sido produzida com o contexto errado, a base errada, uma recuperação irrelevante ou uma instrução inadequada.
+
+Foi aí que o problema deixou de ser apenas **“como fazer a IA responder?”** e passou a ser:
+
+> **como garantir que ela responda a partir do contexto certo — e como perceber quando uma mudança aparentemente melhor piorou algo importante?**
+
+Essa pergunta passou a orientar a arquitetura, os testes e o processo de evolução do sistema.
+
+---
+
+## Como o sistema é organizado
 
 Cada agente combina três camadas diferentes:
 
-1. **Comportamento** — como deve orientar, explicar, perguntar e reconhecer limites.
+1. **Comportamento** — como deve orientar, explicar, perguntar, priorizar e reconhecer limites.
 2. **Conhecimento** — documentos e conteúdos específicos de sua especialidade.
-3. **Contexto da conversa** — o que já foi discutido com o usuário e precisa ser considerado na resposta seguinte.
+3. **Contexto da conversa** — o que já foi discutido com o usuário e precisa chegar corretamente à próxima resposta.
 
 De forma simplificada:
 
 ```mermaid
 flowchart TD
-    A[Pergunta do usuário] --> B[Entendimento da conversa]
-    B --> C[Busca na base do agente]
-    C --> D{O conteúdo encontrado é relevante?}
-    D -- Não --> E[Não usar contexto inadequado]
-    D -- Sim --> F[Selecionar trechos relevantes]
-    E --> G[Gerar resposta]
-    F --> G
-    G --> H[Avaliar comportamento e qualidade]
+    A[Pergunta do usuário] --> B[Histórico da conversa]
+    B --> C[Base de conhecimento do agente]
+    C --> D[Busca semântica]
+    D --> E{Há conteúdo relevante o suficiente?}
+    E -- Não --> F[Não usar contexto inadequado]
+    E -- Sim --> G[Selecionar trechos relevantes]
+    F --> H[Gerar resposta]
+    G --> H
+    H --> I[Avaliar comportamento e qualidade]
 ```
 
-A tecnologia de recuperação é importante, mas o ponto mais relevante do projeto está nas **decisões ao redor dela**.
+A tecnologia de recuperação é importante.
+
+Mas as decisões mais difíceis apareceram justamente **ao redor dela**.
 
 ---
 
-# Caso 1 — O “melhor resultado” da busca ainda pode estar errado
+# Caso 1 — “Melhor resultado” não significa “resultado relevante”
 
 ## O problema
 
 A primeira versão da recuperação semântica buscava os trechos mais próximos da pergunta.
 
-Tecnicamente, a busca funcionava.
+Tecnicamente, funcionava.
 
-Mas havia uma falha conceitual:
+Até surgir um problema conceitual:
 
-> uma busca sempre consegue encontrar os itens *mais próximos* disponíveis — mesmo quando nenhum deles é realmente relevante.
+> **uma busca sempre consegue encontrar os “melhores resultados disponíveis”.**
 
-Isso significa que uma pergunta sobre um assunto poderia receber trechos de outro domínio apenas porque aqueles eram os resultados menos distantes encontrados.
+Mesmo quando nenhum deles é realmente relevante.
 
-O modelo então recebia aquele conteúdo como contexto e podia produzir uma resposta convincente sobre uma premissa errada.
+Na prática, o sistema podia recuperar seis trechos da base e entregar todos para a IA.
 
-### O risco
+E a IA fazia o que sabe fazer muito bem:
+
+transformava aquele contexto em uma resposta clara, organizada e convincente.
+
+Só que havia uma pergunta mais importante:
+
+> **aqueles conteúdos deveriam estar sendo usados para responder?**
+
+Esse é um tipo de falha difícil de perceber olhando apenas para a resposta final.
+
+O texto pode parecer ótimo.
+
+O problema está no que aconteceu antes dele.
 
 ```text
 Pergunta
    ↓
-Busca os 6 resultados mais próximos
+Busca os resultados mais próximos
    ↓
-Sempre existem "6 melhores"
+Sempre existem "melhores resultados"
    ↓
-Mesmo que todos sejam ruins
+Mesmo quando nenhum é relevante
    ↓
-Contexto inadequado entra no prompt
+Contexto inadequado chega ao modelo
    ↓
 Resposta plausível, mas mal fundamentada
 ```
-
-Esse é um problema perigoso porque a experiência visual pode parecer normal. A resposta continua bem escrita.
-
-A falha está na origem do raciocínio.
 
 ---
 
 ## A decisão
 
-A recuperação deixou de responder apenas:
+A busca não deveria responder apenas:
 
 **“quais são os resultados mais próximos?”**
 
-e passou a responder também:
+Precisava responder também:
 
-**“algum desses resultados é relevante o suficiente para ser usado?”**
+**“eles são relevantes o suficiente para participar da resposta?”**
 
-Foi criado um gate de relevância: conteúdos abaixo de um limite calibrado não seguem para a geração da resposta.
+Foi criado um gate de relevância: conteúdos abaixo de um limite calibrado não entram no contexto do agente.
 
-Também foi mantido o isolamento por agente, para que a consulta de um especialista não utilize a base de outro.
+Também foi mantido o isolamento por agente, para que uma consulta não utilize a base de outro especialista.
 
 ```text
 Busca semântica
@@ -121,136 +138,214 @@ Usar contexto    Descartar
 
 ## Como a hipótese foi validada
 
-Um detalhe importante da investigação foi descobrir que um teste inicialmente utilizado para simular perguntas produzia uma percepção errada da qualidade da recuperação.
+Durante a investigação, um teste inicialmente usado para simular perguntas produzia uma percepção enganosa da qualidade da recuperação.
 
-Em vez de aceitar o teste como suficiente, a validação foi refeita utilizando **embeddings de perguntas reais**.
+A validação foi refeita com **embeddings de perguntas reais, escritas como usuários realmente perguntariam**.
 
-O comportamento esperado passou a ser verificado em dois sentidos:
+A partir daí, o comportamento esperado passou a ser verificado nos dois sentidos:
 
 - uma pergunta de determinado domínio deve recuperar conteúdo relevante dentro da base correta;
-- a mesma pergunta, consultada contra uma base de outro domínio sem relação, deve poder retornar **nenhum conteúdo**.
+- a mesma pergunta, consultada contra uma base sem relação com o assunto, deve poder retornar **nenhum conteúdo**.
 
-Isso parece simples, mas muda o significado da recuperação:
+Foi daí que ficou um dos princípios mais importantes deste case:
 
-> **zero resultados pode ser uma resposta melhor do sistema do que seis resultados ruins.**
+> **em alguns casos, zero resultados é uma resposta melhor do sistema do que seis resultados ruins.**
 
-Esse foi um dos principais aprendizados técnicos do projeto.
+A consequência prática é simples:
 
----
-
-# Caso 2 — Melhorar a média não é suficiente para aprovar uma mudança
-
-Prompts e comportamentos dos agentes evoluem continuamente.
-
-O problema é que uma alteração pode melhorar várias respostas e, ao mesmo tempo, piorar justamente um cenário crítico.
-
-Avaliar apenas algumas conversas manualmente cria um risco: escolher a versão que “parece melhor”.
-
-O ImpactAI passou a utilizar conjuntos estruturados de avaliação.
+**uma resposta convincente não prova que a recuperação funcionou. Ela pode apenas esconder muito bem que não funcionou.**
 
 ---
 
-## O processo
+# Caso 2 — Uma resposta ruim não diz onde o problema nasceu
 
-As avaliações incluem cenários como:
+Quando uma resposta final vem superficial, incoerente ou simplesmente errada, é tentador olhar primeiro para o prompt.
+
+Mas, antes de o modelo escrever qualquer coisa, uma sequência inteira já aconteceu.
+
+- A pergunta precisou ser interpretada.
+- O histórico da conversa precisou chegar corretamente.
+- Uma base de conhecimento precisou ser selecionada ou consultada.
+- A busca recuperou determinados conteúdos.
+- Algum critério decidiu quais deles eram relevantes.
+- Esse contexto foi combinado com as instruções do agente.
+- Só então o modelo respondeu.
+
+O problema é que falhas diferentes ao longo desse caminho podem produzir exatamente o mesmo sintoma na tela:
+
+**uma resposta inadequada.**
+
+Por isso, o diagnóstico passou a ser separado por camada:
+
+```text
+Pergunta
+   ↓
+Histórico
+   ↓
+Base
+   ↓
+Recuperação
+   ↓
+Relevância
+   ↓
+Instruções
+   ↓
+Modelo
+   ↓
+Resposta
+```
+
+Essa separação evita um erro especialmente perigoso:
+
+> **tentar corrigir no prompt um problema que nasceu em outra parte do sistema.**
+
+Se a busca recuperou um contexto inadequado, uma instrução melhor não corrige a recuperação.
+
+Se o histórico foi montado de forma incompleta, mudar o comportamento do agente não devolve uma informação que nunca chegou até ele.
+
+Se a base não contém o conhecimento necessário, exigir uma resposta “mais precisa” pode apenas tornar o erro mais convincente.
+
+Por isso, uma pergunta passou a orientar boa parte das investigações:
+
+> **“O que exatamente chegou até o modelo para que essa resposta fosse possível?”**
+
+Porque a resposta é o fim do pipeline.
+
+**Não necessariamente a origem do problema.**
+
+---
+
+# Caso 3 — Uma versão ganhou mais testes e mesmo assim foi rejeitada
+
+Melhorar a média não é suficiente para aprovar uma mudança.
+
+Em uma das avaliações, comparei duas versões do mesmo agente em **36 julgamentos cegos**.
+
+O resultado agregado foi:
+
+- **12 vitórias** para a versão candidata;
+- **10 vitórias** para a versão em uso;
+- **14 empates**.
+
+Olhando apenas para esse resultado, havia sinal de melhora.
+
+Mas o processo também avaliava **falhas críticas**.
+
+E nela aconteceu o contrário:
+
+- versão em uso: **1 falha crítica**;
+- versão candidata: **3 falhas críticas**.
+
+Uma dessas falhas apareceu em um cenário simples de explicar.
+
+A pergunta apresentava três problemas ao mesmo tempo:
+
+- pouca adesão de novos voluntários;
+- voluntários antigos desmotivados;
+- falta de indicadores.
+
+O agente precisava decidir o que priorizar primeiro.
+
+A versão candidata colocou **indicadores antes de resolver o gargalo humano e operacional**.
+
+Não era uma resposta absurda.
+
+Esse era justamente o problema.
+
+Ela era plausível, organizada e defensável isoladamente — mas priorizava a medição antes do problema que mais comprometia a operação naquele momento.
+
+Foi aí que a avaliação deixou de responder apenas:
+
+**“qual versão venceu mais vezes?”**
+
+e passou também a perguntar:
+
+**“onde ela piorou — e qual é o custo dessa piora?”**
+
+A versão candidata teve desempenho agregado melhor.
+
+Mesmo assim, não foi aprovada.
+
+Dessa decisão ficou outro princípio que levo para avaliações de sistemas de IA:
+
+> **melhor desempenho agregado não significa necessariamente um sistema melhor.**
+
+Avaliar qualidade também é definir **o que pode melhorar e o que não pode piorar enquanto melhora.**
+
+---
+
+# Como as versões são avaliadas
+
+As avaliações usam cenários diferentes para evitar que “qualidade” vire apenas uma impressão subjetiva.
+
+Os conjuntos de teste incluem situações como:
 
 - perguntas conceituais;
-- situações operacionais;
+- problemas operacionais;
 - perguntas ambíguas;
 - interpretação de métricas;
 - falta de informação atual verificável;
 - limites de atuação;
 - proteção de dados;
-- restrição de recursos;
+- poucos recursos;
 - conflitos de prioridade.
 
-Parte das perguntas é mantida fora do ciclo normal de ajuste — um conjunto de **holdout** — para verificar se a melhoria continua funcionando em situações que não foram usadas para construí-la.
+Parte das perguntas é mantida fora do ciclo normal de ajuste — um conjunto de **holdout** — para testar a candidata em situações que não foram usadas para construí-la.
 
-Quando duas versões precisam ser comparadas, as respostas podem ser avaliadas de forma cega e com a posição alternada para reduzir viés de apresentação.
+Quando duas versões precisam ser comparadas, as respostas são avaliadas de forma cega e com posição balanceada para reduzir viés de apresentação.
 
 ```text
 Versão atual ─┐
-              ├─> mesmas perguntas
+              ├── mesmas perguntas
 Candidata ────┘
                     ↓
              comparação cega
                     ↓
           critérios de qualidade
                     ↓
+            falhas críticas?
+                    ↓
              gate de aprovação
 ```
 
----
+Uma candidata não é aprovada simplesmente porque ganhou mais comparações.
 
-## A regra que mudou o processo
+Algumas regressões podem bloquear a mudança, como:
 
-Uma candidata não é aprovada simplesmente porque “ganhou mais comparações”.
-
-Existem falhas que bloqueiam a mudança.
-
-Exemplos:
-
-- inventar um dado atual que não pode ser confirmado;
+- inventar uma informação que o contexto não sustenta;
 - transformar hipótese em certeza;
-- ultrapassar um limite importante do agente;
-- perder uma capacidade central existente;
+- ultrapassar um limite importante;
+- perder uma capacidade já existente;
 - revelar informação interna;
-- apresentar uma orientação inadequada em um cenário crítico.
-
-Na prática, isso já produziu uma situação importante: **versões com desempenho agregado melhor foram bloqueadas porque falharam em cenários críticos específicos**.
-
-Esse comportamento é intencional.
-
-Para um produto baseado em IA, melhorar a média não compensa qualquer tipo de regressão.
+- priorizar incorretamente um cenário crítico.
 
 ---
 
 # Avaliação também precisa ser engenharia
 
-Durante a evolução dos testes, outro problema apareceu: avaliações longas dependentes de APIs podem ser interrompidas por limite de uso, erro de rede ou falha externa.
+Em avaliações longas dependentes de APIs, outro problema aparece: limite de uso, erro de rede ou falha externa podem interromper uma execução no meio.
 
-Se todo o progresso existir apenas em memória, uma interrupção pode invalidar dezenas de execuções já realizadas.
+Se todo o progresso existir apenas em memória, dezenas de resultados válidos podem ser perdidos.
 
 Por isso, o processo de avaliação passou a incluir:
 
-- persistência incremental dos resultados;
+- persistência incremental;
 - retomada de execuções interrompidas;
 - separação entre recuperação, geração e julgamento;
 - reaproveitamento do que já foi concluído;
-- validação do formato produzido pelos avaliadores;
-- testes locais sem custo quando chamadas reais não são necessárias;
+- validação do formato retornado pelos avaliadores;
+- testes locais quando chamadas reais não são necessárias;
 - execução ao vivo somente quando explicitamente habilitada.
 
-O objetivo é simples: **o mecanismo usado para medir qualidade também precisa ser confiável.**
+O princípio é o mesmo:
 
----
-
-# Como diagnostico uma resposta ruim
-
-Uma resposta inadequada não significa automaticamente que “o prompt está ruim”.
-
-No ImpactAI, o diagnóstico separa diferentes possibilidades:
-
-```text
-Resposta inadequada
-       │
-       ├── a pergunta foi entendida corretamente?
-       ├── a base certa foi consultada?
-       ├── a busca encontrou conteúdo suficiente?
-       ├── o conteúdo recuperado era realmente relevante?
-       ├── o histórico da conversa foi preservado?
-       ├── as instruções do agente estão corretas?
-       ├── o modelo é adequado para essa tarefa?
-       └── a própria base de conhecimento precisa melhorar?
-```
-
-Essa separação evita um erro comum em produtos de IA: **alterar o prompt para tentar corrigir um problema que nasceu em outra camada do sistema.**
+> **o mecanismo usado para medir qualidade também precisa ser confiável.**
 
 ---
 
 # Qualidade e custo são decisões conjuntas
 
-Outro princípio do projeto é não utilizar automaticamente o modelo mais caro disponível.
+Outro princípio do projeto é não usar automaticamente o modelo mais caro disponível.
 
 Cada tarefa é analisada considerando:
 
@@ -261,17 +356,19 @@ Cada tarefa é analisada considerando:
 - latência;
 - capacidade necessária.
 
-A diretriz é utilizar **o modelo de menor custo que entregue a qualidade necessária para aquela função**.
+A diretriz é usar **o modelo de menor custo que entregue a qualidade necessária para aquela função**.
 
-Isso vale tanto para respostas ao usuário quanto para tarefas auxiliares de avaliação e classificação.
+Isso vale tanto para respostas ao usuário quanto para tarefas auxiliares de avaliação, classificação e validação.
 
-Em produto, custo não é uma preocupação posterior à arquitetura. Ele faz parte dela.
+Em produto, custo não é uma preocupação posterior à arquitetura.
+
+**Ele faz parte dela.**
 
 ---
 
-# Meu papel no ImpactAI
+# Meu papel neste projeto
 
-O ImpactAI foi desenvolvido com apoio intensivo de ferramentas de IA para programação e investigação.
+O desenvolvimento foi feito com apoio intensivo de ferramentas de IA para programação, investigação e revisão.
 
 Isso não significa delegar o produto a um modelo.
 
@@ -290,7 +387,7 @@ Minha atuação inclui:
 - condução dos ciclos de investigação, correção e validação;
 - decisões sobre evolução do produto.
 
-As ferramentas de IA são utilizadas como **copilotos de engenharia** para acelerar exploração de código, implementação, testes, refatoração, documentação e diagnóstico.
+As ferramentas de IA funcionam como **copilotos de engenharia** para acelerar exploração de código, implementação, testes, refatoração, documentação e diagnóstico.
 
 A responsabilidade sobre requisitos, decisões e validação permanece humana.
 
@@ -310,66 +407,35 @@ A aplicação utiliza, entre outras tecnologias:
 - **Docker**
 - **Git / GitHub**
 
-A stack é parte da solução, mas não é o foco deste case.
+A stack é parte da solução, mas não é o centro deste case.
 
-O foco está nas decisões necessárias para transformar uma integração com modelos de linguagem em um produto que possa ser testado, corrigido e evoluído.
-
----
-
-# O que eu aprendi construindo o ImpactAI
-
-### 1. Uma resposta convincente não prova que a recuperação funcionou
-
-É preciso verificar o contexto que chegou ao modelo.
-
-### 2. “Top results” não significa “relevant results”
-
-Saber quando **não recuperar nada** é parte importante de um bom sistema de busca.
-
-### 3. Prompt não é a única variável
-
-Qualidade pode falhar na base, na recuperação, no histórico, na aplicação, na avaliação ou no modelo.
-
-### 4. Avaliação precisa proteger contra regressões, não apenas produzir uma nota
-
-Uma média melhor não deve esconder uma falha grave.
-
-### 5. Testes de IA também podem ter vieses
-
-Ordem das respostas, perguntas conhecidas demais e avaliadores mal instruídos podem alterar o resultado.
-
-### 6. Custo precisa entrar cedo na decisão técnica
-
-Usar um modelo maior em todas as etapas pode mascarar problemas arquiteturais e tornar o produto inviável em escala.
-
-### 7. Desenvolvimento assistido por IA exige mais clareza, não menos
-
-Quanto maior a velocidade de implementação, mais importantes ficam escopo, critérios de aceite e validação.
+O foco está nas decisões necessárias para transformar uma integração com modelos de linguagem em um sistema que possa ser **investigado, testado, corrigido e evoluído com evidência**.
 
 ---
 
-# Por que o código não está neste repositório
+# O que permanece privado
 
-Este repositório é um **case de engenharia**, não uma versão open source do ImpactAI.
+Este repositório é um **case público de engenharia**, não uma versão open source do produto.
 
 Permanecem privados:
 
 - código-fonte de produção;
+- nome e identidade pública do produto;
 - bases de conhecimento;
 - documentos utilizados pelos agentes;
 - prompts internos completos;
 - credenciais e configurações;
 - dados de usuários;
 - logs identificáveis;
-- detalhes de infraestrutura;
+- detalhes sensíveis da infraestrutura;
 - parâmetros operacionais que não são necessários para compreender as decisões apresentadas aqui.
 
-A intenção é mostrar o problema, o raciocínio de engenharia e os aprendizados sem comprometer segurança, privacidade ou propriedade intelectual.
+A intenção é mostrar o problema, o raciocínio, a evidência e as decisões de engenharia sem comprometer segurança, privacidade ou propriedade intelectual.
 
 ---
 
 ## Status
 
-O ImpactAI continua em desenvolvimento.
+O sistema continua em desenvolvimento.
 
-Este case será atualizado à medida que novas decisões de arquitetura e novos aprendizados puderem ser compartilhados de forma pública e segura.
+Este case pode ser atualizado quando novos problemas e decisões trouxerem aprendizados diferentes dos que já estão documentados aqui.
