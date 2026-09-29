@@ -2,7 +2,7 @@
 
 **Como uma plataforma de agentes especializados passou a tratar recuperação, relevância, diagnóstico e regressão como problemas de engenharia — e não apenas como “respostas de IA”.**
 
-> Este é um case público de produto e engenharia. O código de produção, as bases de conhecimento, dados de usuários, credenciais, prompts internos completos e detalhes sensíveis da infraestrutura permanecem privados.
+> Este é um case público de produto e engenharia. O nome do produto, o código de produção, as bases de conhecimento, dados de usuários, credenciais, prompts internos completos e detalhes sensíveis da infraestrutura permanecem privados.
 
 ---
 
@@ -12,33 +12,33 @@ Uma IA pode dar uma ótima resposta com a informação errada.
 
 Esse foi um dos problemas mais importantes que encontrei construindo uma plataforma de agentes especializados para organizações do Terceiro Setor.
 
-A aplicação reunia agentes voltados a temas diferentes, como planejamento, captação de recursos, projetos, prestação de contas, comunicação e voluntariado.
+A aplicação reúne agentes voltados a temas diferentes, como planejamento, captação de recursos, projetos, prestação de contas, comunicação e voluntariado.
 
-No começo, o desafio parecia simples:
+No início, o fluxo parecia simples:
 
-> receber uma pergunta, buscar conhecimento relacionado e gerar uma boa resposta.
+> receber uma pergunta, buscar conhecimento relacionado e gerar uma resposta.
 
 Mas uma resposta bem escrita não prova que o sistema funcionou.
 
-Ela pode ter sido produzida com o contexto errado, a base errada, uma recuperação irrelevante ou uma instrução inadequada.
+Ela pode ter sido produzida com a base errada, um contexto irrelevante, um histórico incompleto ou um prompt inadequado.
 
-Foi aí que o problema deixou de ser apenas **“como fazer a IA responder?”** e passou a ser:
+A pergunta de engenharia passou a ser outra:
 
-> **como garantir que ela responda a partir do contexto certo — e como perceber quando uma mudança aparentemente melhor piorou algo importante?**
+> **como garantir que o modelo responda a partir do contexto certo — e como detectar quando uma mudança aparentemente melhor introduz uma regressão importante?**
 
-Essa pergunta passou a orientar a arquitetura, os testes e o processo de evolução do sistema.
+Essa pergunta orientou a arquitetura, os testes e o processo de evolução do sistema.
 
 ---
 
 ## Como o sistema é organizado
 
-Cada agente combina três camadas diferentes:
+De forma simplificada, cada resposta depende de três blocos:
 
-1. **Comportamento** — como deve orientar, explicar, perguntar, priorizar e reconhecer limites.
-2. **Conhecimento** — documentos e conteúdos específicos de sua especialidade.
-3. **Contexto da conversa** — o que já foi discutido com o usuário e precisa chegar corretamente à próxima resposta.
+1. **System prompt** — define comportamento, limites, forma de orientar e critérios de atuação do agente.
+2. **Conhecimento** — documentos e conteúdos específicos da especialidade.
+3. **Contexto da conversa** — histórico e informações que precisam chegar corretamente ao turno atual.
 
-De forma simplificada:
+O pipeline pode ser representado assim:
 
 ```mermaid
 flowchart TD
@@ -48,74 +48,67 @@ flowchart TD
     D --> E{Há conteúdo relevante o suficiente?}
     E -- Não --> F[Não usar contexto inadequado]
     E -- Sim --> G[Selecionar trechos relevantes]
-    F --> H[Gerar resposta]
+    F --> H[System prompt + contexto]
     G --> H
-    H --> I[Avaliar comportamento e qualidade]
+    H --> I[Modelo]
+    I --> J[Resposta]
 ```
 
-A tecnologia de recuperação é importante.
-
-Mas as decisões mais difíceis apareceram justamente **ao redor dela**.
+Os três casos abaixo nasceram de problemas diferentes dentro desse pipeline.
 
 ---
 
 # Caso 1 — “Melhor resultado” não significa “resultado relevante”
 
-## O problema
+## O que estava sendo testado
 
-A primeira versão da recuperação semântica buscava os trechos mais próximos da pergunta.
+A recuperação semântica tinha uma função objetiva:
 
-Tecnicamente, funcionava.
+**selecionar, dentro da base correta, os conteúdos que realmente poderiam fundamentar a resposta do agente.**
 
-Até surgir um problema conceitual:
+A primeira implementação buscava os trechos semanticamente mais próximos da pergunta e devolvia os melhores candidatos encontrados.
 
-> **uma busca sempre consegue encontrar os “melhores resultados disponíveis”.**
+Tecnicamente, a busca funcionava.
 
-Mesmo quando nenhum deles é realmente relevante.
+O problema era outro.
 
-Na prática, o sistema podia recuperar seis trechos da base e entregar todos para a IA.
+> **uma busca sempre consegue ordenar os resultados mais próximos disponíveis — mesmo quando nenhum deles é relevante o suficiente para ser usado.**
 
-E a IA fazia o que sabe fazer muito bem:
+Na prática, o sistema podia recuperar até seis trechos e entregar todos ao modelo.
 
-transformava aquele contexto em uma resposta clara, organizada e convincente.
+O fato de serem os seis resultados mais próximos não respondia à pergunta mais importante:
 
-Só que havia uma pergunta mais importante:
+> **algum deles deveria entrar no contexto?**
 
-> **aqueles conteúdos deveriam estar sendo usados para responder?**
-
-Esse é um tipo de falha difícil de perceber olhando apenas para a resposta final.
-
-O texto pode parecer ótimo.
-
-O problema está no que aconteceu antes dele.
+Sem essa distinção, o fluxo podia terminar assim:
 
 ```text
 Pergunta
    ↓
-Busca os resultados mais próximos
+Busca semântica
    ↓
-Sempre existem "melhores resultados"
+6 resultados mais próximos
    ↓
-Mesmo quando nenhum é relevante
+Nenhum realmente relevante
    ↓
 Contexto inadequado chega ao modelo
    ↓
 Resposta plausível, mas mal fundamentada
 ```
 
----
-
 ## A decisão
 
-A busca não deveria responder apenas:
+A recuperação deixou de responder apenas:
 
-**“quais são os resultados mais próximos?”**
+**“quais conteúdos estão mais próximos da pergunta?”**
 
-Precisava responder também:
+e passou a responder também:
 
-**“eles são relevantes o suficiente para participar da resposta?”**
+**“quais deles são relevantes o suficiente para participar da resposta?”**
 
-Foi criado um gate de relevância: conteúdos abaixo de um limite calibrado não entram no contexto do agente.
+Foi criado um **gate mínimo de relevância**.
+
+Conteúdos abaixo desse limite não entram no contexto do agente.
 
 Também foi mantido o isolamento por agente, para que uma consulta não utilize a base de outro especialista.
 
@@ -124,7 +117,7 @@ Busca semântica
       ↓
 Resultados candidatos
       ↓
-Critério mínimo de relevância
+Gate de relevância
       ↓
    ┌───────────────┐
    │               │
@@ -134,48 +127,58 @@ Relevante       Insuficiente
 Usar contexto    Descartar
 ```
 
----
+## O objetivo da validação
 
-## Como a hipótese foi validada
+A validação precisava provar duas coisas ao mesmo tempo:
 
-Durante a investigação, um teste inicialmente usado para simular perguntas produzia uma percepção enganosa da qualidade da recuperação.
+- uma pergunta pertencente ao domínio deveria recuperar conteúdo relevante na base correta;
+- uma pergunta sem relação suficiente com outra base deveria poder retornar **zero resultados**.
 
-A validação foi refeita com **embeddings de perguntas reais, escritas como usuários realmente perguntariam**.
+Esse segundo comportamento era essencial.
 
-A partir daí, o comportamento esperado passou a ser verificado nos dois sentidos:
-
-- uma pergunta de determinado domínio deve recuperar conteúdo relevante dentro da base correta;
-- a mesma pergunta, consultada contra uma base sem relação com o assunto, deve poder retornar **nenhum conteúdo**.
+Sem ele, o sistema sempre encontraria “alguma coisa” para entregar ao modelo, mesmo quando a resposta correta da recuperação deveria ser: **não há contexto confiável o suficiente**.
 
 Foi daí que ficou um dos princípios mais importantes deste case:
 
 > **em alguns casos, zero resultados é uma resposta melhor do sistema do que seis resultados ruins.**
 
-A consequência prática é simples:
+A consequência prática é direta:
 
 **uma resposta convincente não prova que a recuperação funcionou. Ela pode apenas esconder muito bem que não funcionou.**
 
 ---
 
-# Caso 2 — Uma resposta ruim não diz onde o problema nasceu
+# Caso 2 — Uma resposta ruim não é um diagnóstico
 
-Quando uma resposta final vem superficial, incoerente ou simplesmente errada, é tentador olhar primeiro para o prompt.
+## O problema
 
-Mas, antes de o modelo escrever qualquer coisa, uma sequência inteira já aconteceu.
+Quando uma resposta final vinha superficial, incoerente ou errada, havia uma tentação natural:
 
-- A pergunta precisou ser interpretada.
-- O histórico da conversa precisou chegar corretamente.
-- Uma base de conhecimento precisou ser selecionada ou consultada.
-- A busca recuperou determinados conteúdos.
-- Algum critério decidiu quais deles eram relevantes.
-- Esse contexto foi combinado com as instruções do agente.
-- Só então o modelo respondeu.
+**mexer primeiro no prompt.**
 
-O problema é que falhas diferentes ao longo desse caminho podem produzir exatamente o mesmo sintoma na tela:
+Mas a resposta é o último estágio do pipeline.
+
+Antes dela, várias coisas já precisaram funcionar:
+
+- a pergunta foi interpretada;
+- o histórico correto chegou ao turno atual;
+- a base certa foi consultada;
+- a recuperação selecionou determinados conteúdos;
+- o gate decidiu o que era relevante;
+- o contexto foi combinado com o system prompt;
+- o modelo gerou a resposta.
+
+Falhas diferentes nessas etapas podem produzir exatamente o mesmo sintoma:
 
 **uma resposta inadequada.**
 
-Por isso, o diagnóstico passou a ser separado por camada:
+O objetivo do diagnóstico, portanto, deixou de ser simplesmente “melhorar a resposta” e passou a ser:
+
+> **descobrir em qual camada o erro nasceu.**
+
+## A mudança no processo de debugging
+
+O diagnóstico passou a ser separado por camada:
 
 ```text
 Pergunta
@@ -188,24 +191,24 @@ Recuperação
    ↓
 Relevância
    ↓
-Instruções
+System prompt
    ↓
 Modelo
    ↓
 Resposta
 ```
 
-Essa separação evita um erro especialmente perigoso:
+Essa separação evita um erro comum em sistemas com IA:
 
 > **tentar corrigir no prompt um problema que nasceu em outra parte do sistema.**
 
-Se a busca recuperou um contexto inadequado, uma instrução melhor não corrige a recuperação.
+Se a busca recuperou contexto inadequado, um prompt melhor não corrige a recuperação.
 
-Se o histórico foi montado de forma incompleta, mudar o comportamento do agente não devolve uma informação que nunca chegou até ele.
+Se o histórico chegou incompleto, mudar o comportamento do agente não recupera informação que nunca chegou ao modelo.
 
-Se a base não contém o conhecimento necessário, exigir uma resposta “mais precisa” pode apenas tornar o erro mais convincente.
+Se a base não contém a informação necessária, exigir uma resposta “mais precisa” pode apenas tornar o erro mais convincente.
 
-Por isso, uma pergunta passou a orientar boa parte das investigações:
+A pergunta que passou a orientar o debugging foi:
 
 > **“O que exatamente chegou até o modelo para que essa resposta fosse possível?”**
 
@@ -215,131 +218,131 @@ Porque a resposta é o fim do pipeline.
 
 ---
 
-# Caso 3 — Uma versão ganhou mais testes e mesmo assim foi rejeitada
+# Caso 3 — O prompt que mais venceu também falhou onde não podia
 
-Melhorar a média não é suficiente para aprovar uma mudança.
+## O que estava sendo avaliado
 
-Em uma das avaliações, comparei duas versões do mesmo agente em **36 julgamentos cegos**.
+O teste não comparava “dois agentes diferentes”.
 
-O resultado agregado foi:
+Ele comparava **duas versões do system prompt do mesmo agente**:
 
-- **12 vitórias** para a versão candidata;
-- **10 vitórias** para a versão em uso;
-- **14 empates**.
+- o prompt que estava em produção;
+- uma nova versão proposta para substituí-lo.
 
-Olhando apenas para esse resultado, havia sinal de melhora.
+O objetivo era decidir se o novo prompt poderia ir para produção **sem introduzir regressões em comportamentos considerados críticos**.
 
-Mas o processo também avaliava **falhas críticas**.
+Para isolar o efeito da mudança, o restante foi mantido controlado entre as duas variantes:
 
-E nela aconteceu o contrário:
+- mesmo modelo;
+- mesma recuperação de contexto;
+- mesmos parâmetros de geração;
+- mesmas perguntas.
 
-- versão em uso: **1 falha crítica**;
-- versão candidata: **3 falhas críticas**.
+Ou seja: a variável principal em avaliação era o **system prompt**.
 
-Uma dessas falhas apareceu em um cenário simples de explicar.
+## Como o teste foi desenhado
 
-A pergunta apresentava três problemas ao mesmo tempo:
+Na avaliação histórica dessa versão, foram usados **12 cenários de holdout** — perguntas separadas do ciclo de ajuste do prompt.
 
-- pouca adesão de novos voluntários;
-- voluntários antigos desmotivados;
-- falta de indicadores.
+Cada cenário foi executado três vezes.
 
-O agente precisava decidir o que priorizar primeiro.
+Isso produziu:
 
-A versão candidata colocou **indicadores antes de resolver o gargalo humano e operacional**.
+> **12 cenários × 3 rodadas = 36 comparações pairwise cegas**
 
-Não era uma resposta absurda.
+Em cada comparação, um avaliador automatizado recebia duas respostas identificadas apenas como **X** e **Y**, sem saber qual havia sido produzida pelo prompt em produção e qual vinha da nova versão.
 
-Esse era justamente o problema.
+A posição das respostas era alternada para reduzir viés de apresentação.
 
-Ela era plausível, organizada e defensável isoladamente — mas priorizava a medição antes do problema que mais comprometia a operação naquele momento.
+O julgamento global considerava critérios como:
 
-Foi aí que a avaliação deixou de responder apenas:
+- utilidade prática;
+- profundidade;
+- clareza;
+- priorização;
+- uso do contexto recuperado;
+- adaptação à pergunta.
 
-**“qual versão venceu mais vezes?”**
+## O resultado agregado
 
-e passou também a perguntar:
+Nas 36 comparações:
 
-**“onde ela piorou — e qual é o custo dessa piora?”**
+- **nova versão: 12 vitórias**;
+- **prompt em produção: 10 vitórias**;
+- **empates: 14**.
 
-A versão candidata teve desempenho agregado melhor.
+Se o critério de aprovação fosse apenas **“qual prompt venceu mais comparações?”**, a nova versão teria vantagem.
 
-Mesmo assim, não foi aprovada.
+Mas esse não era o objetivo do teste.
 
-Dessa decisão ficou outro princípio que levo para avaliações de sistemas de IA:
+## O gate que podia bloquear a mudança
 
-> **melhor desempenho agregado não significa necessariamente um sistema melhor.**
+Além do julgamento global, cada resposta passava por um **gate crítico independente**.
 
-Avaliar qualidade também é definir **o que pode melhorar e o que não pode piorar enquanto melhora.**
+Esse gate verificava comportamentos que não deveriam ser compensados por bons resultados em outros cenários, incluindo:
 
----
+- factualidade;
+- resposta efetiva à pergunta;
+- não inventar informações;
+- segurança e proteção de dados;
+- respeito aos limites profissionais;
+- priorização correta quando exigida;
+- ausência de revelação de informações internas.
 
-# Como as versões são avaliadas
+Uma falha nesse grupo tinha precedência sobre uma boa avaliação de estilo ou utilidade.
 
-As avaliações usam cenários diferentes para evitar que “qualidade” vire apenas uma impressão subjetiva.
+E foi aí que o resultado mudou:
 
-Os conjuntos de teste incluem situações como:
+- **prompt em produção: 1 ocorrência de falha crítica**;
+- **nova versão: 3 ocorrências de falha crítica**.
 
-- perguntas conceituais;
-- problemas operacionais;
-- perguntas ambíguas;
-- interpretação de métricas;
-- falta de informação atual verificável;
-- limites de atuação;
-- proteção de dados;
-- poucos recursos;
-- conflitos de prioridade.
+A nova versão venceu mais comparações, mas também introduziu mais regressões justamente em comportamentos que faziam parte do gate de aprovação.
 
-Parte das perguntas é mantida fora do ciclo normal de ajuste — um conjunto de **holdout** — para testar a candidata em situações que não foram usadas para construí-la.
+Por isso, a pergunta final não era:
 
-Quando duas versões precisam ser comparadas, as respostas são avaliadas de forma cega e com posição balanceada para reduzir viés de apresentação.
+**“qual prompt ganhou mais?”**
 
-```text
-Versão atual ─┐
-              ├── mesmas perguntas
-Candidata ────┘
-                    ↓
-             comparação cega
-                    ↓
-          critérios de qualidade
-                    ↓
-            falhas críticas?
-                    ↓
-             gate de aprovação
-```
+Era:
 
-Uma candidata não é aprovada simplesmente porque ganhou mais comparações.
+> **“esse prompt melhora o agente sem piorar algo que não pode piorar?”**
 
-Algumas regressões podem bloquear a mudança, como:
+Naquela avaliação, a resposta foi não.
 
-- inventar uma informação que o contexto não sustenta;
-- transformar hipótese em certeza;
-- ultrapassar um limite importante;
-- perder uma capacidade já existente;
-- revelar informação interna;
-- priorizar incorretamente um cenário crítico.
+O novo prompt **não passou para produção**.
+
+O ponto não é que o resultado agregado fosse inútil. Ele continuava sendo evidência importante.
+
+Mas ele não podia sozinho decidir a promoção de uma versão.
+
+> **ganhar mais comparações não significa automaticamente estar pronto para produção.**
+
+Avaliar qualidade também exige definir **quais regressões uma melhoria não pode introduzir**.
+
+> Nota metodológica: os 12 cenários usados nessa avaliação foram posteriormente formalizados como conjunto histórico de desenvolvimento. Eles serviram para diagnosticar as falhas encontradas, mas não foram reutilizados para aprovar a versão seguinte, que recebeu um novo holdout.
 
 ---
 
 # Avaliação também precisa ser engenharia
 
-Em avaliações longas dependentes de APIs, outro problema aparece: limite de uso, erro de rede ou falha externa podem interromper uma execução no meio.
+O desenho dos critérios não era o único problema.
 
-Se todo o progresso existir apenas em memória, dezenas de resultados válidos podem ser perdidos.
+Avaliações longas dependentes de APIs também podem falhar por motivos operacionais: limite de uso, erro de rede ou interrupção externa.
 
-Por isso, o processo de avaliação passou a incluir:
+Se todo o progresso existir apenas em memória, uma falha no final da execução pode invalidar dezenas de resultados já obtidos.
 
-- persistência incremental;
+Por isso, o processo passou a incluir:
+
+- persistência incremental dos resultados;
 - retomada de execuções interrompidas;
 - separação entre recuperação, geração e julgamento;
 - reaproveitamento do que já foi concluído;
-- validação do formato retornado pelos avaliadores;
+- validação estrutural da saída do avaliador;
 - testes locais quando chamadas reais não são necessárias;
 - execução ao vivo somente quando explicitamente habilitada.
 
-O princípio é o mesmo:
+O objetivo aqui também é verificável:
 
-> **o mecanismo usado para medir qualidade também precisa ser confiável.**
+> **o mecanismo usado para medir qualidade precisa ser confiável o suficiente para que a própria avaliação não vire uma fonte de erro.**
 
 ---
 
@@ -376,10 +379,11 @@ Minha atuação inclui:
 
 - concepção do produto e dos casos de uso;
 - definição das especialidades dos agentes;
-- organização das regras de comportamento;
+- definição e evolução dos system prompts;
 - decisões sobre recuperação de conhecimento;
-- desenho de critérios de relevância;
-- criação de cenários de teste e aceitação;
+- desenho de critérios e gates de relevância;
+- criação de cenários de teste e critérios de aceitação;
+- desenho e revisão das avaliações de prompt;
 - análise de falhas e regressões;
 - definição do que deve bloquear uma mudança;
 - priorização entre qualidade, custo e complexidade;
@@ -430,7 +434,7 @@ Permanecem privados:
 - detalhes sensíveis da infraestrutura;
 - parâmetros operacionais que não são necessários para compreender as decisões apresentadas aqui.
 
-A intenção é mostrar o problema, o raciocínio, a evidência e as decisões de engenharia sem comprometer segurança, privacidade ou propriedade intelectual.
+A intenção é mostrar **o problema, o objetivo, o método, a evidência e a decisão** sem comprometer segurança, privacidade ou propriedade intelectual.
 
 ---
 
