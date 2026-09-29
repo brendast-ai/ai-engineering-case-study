@@ -1,8 +1,8 @@
-# Case de Engenharia — Agentes de IA com RAG e avaliação contínua
+# Estudo de caso — Agentes de IA com RAG e avaliação contínua
 
 **Como uma plataforma de agentes especializados passou a tratar recuperação, relevância, diagnóstico e regressão como problemas de engenharia — e não apenas como “respostas de IA”.**
 
-> Este é um case público de produto e engenharia. O nome do produto, o código de produção, as bases de conhecimento, dados de usuários, credenciais, prompts internos completos e detalhes sensíveis da infraestrutura permanecem privados.
+> Este é um estudo de caso sobre a evolução de um produto com agentes de IA. O nome do produto, o código de produção, as bases de conhecimento, dados de usuários, credenciais, prompts internos completos e detalhes sensíveis da infraestrutura permanecem privados.
 
 ---
 
@@ -369,35 +369,19 @@ Em produto, custo não é uma preocupação posterior à arquitetura.
 
 ---
 
-# Meu papel neste projeto
+# Minha atuação neste trabalho
 
-O desenvolvimento foi feito com apoio intensivo de ferramentas de IA para programação, investigação e revisão.
+Minha atuação esteve na definição do comportamento esperado dos agentes, investigação de problemas de qualidade, construção dos critérios de avaliação e validação das mudanças realizadas no produto.
 
-Isso não significa delegar o produto a um modelo.
+Também participei das decisões sobre recuperação de conhecimento, relevância, prompts, cenários de teste e critérios que deveriam bloquear uma mudança.
 
-Minha atuação inclui:
+Ferramentas de IA foram utilizadas intensivamente como apoio para exploração do código, implementação, testes, investigação e documentação.
 
-- concepção do produto e dos casos de uso;
-- definição das especialidades dos agentes;
-- definição e evolução dos system prompts;
-- decisões sobre recuperação de conhecimento;
-- desenho de critérios e gates de relevância;
-- criação de cenários de teste e critérios de aceitação;
-- desenho e revisão das avaliações de prompt;
-- análise de falhas e regressões;
-- definição do que deve bloquear uma mudança;
-- priorização entre qualidade, custo e complexidade;
-- revisão de implementações geradas com apoio de IA;
-- condução dos ciclos de investigação, correção e validação;
-- decisões sobre evolução do produto.
-
-As ferramentas de IA funcionam como **copilotos de engenharia** para acelerar exploração de código, implementação, testes, refatoração, documentação e diagnóstico.
-
-A responsabilidade sobre requisitos, decisões e validação permanece humana.
+As decisões sobre comportamento do produto, critérios de aceite e validação das mudanças fizeram parte da minha condução do trabalho.
 
 ---
 
-# Stack
+# Tecnologias envolvidas
 
 A aplicação utiliza, entre outras tecnologias:
 
@@ -411,7 +395,7 @@ A aplicação utiliza, entre outras tecnologias:
 - **Docker**
 - **Git / GitHub**
 
-A stack é parte da solução, mas não é o centro deste case.
+As tecnologias são parte da solução, mas não são o centro deste estudo de caso.
 
 O foco está nas decisões necessárias para transformar uma integração com modelos de linguagem em um sistema que possa ser **investigado, testado, corrigido e evoluído com evidência**.
 
@@ -419,7 +403,7 @@ O foco está nas decisões necessárias para transformar uma integração com mo
 
 # O que permanece privado
 
-Este repositório é um **case público de engenharia**, não uma versão open source do produto.
+Este repositório é um **estudo de caso público**, não uma versão open source do produto.
 
 Permanecem privados:
 
